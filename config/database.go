@@ -6,6 +6,8 @@ import (
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+
+	"github.com/goraasep/payslip-generation-system/models"
 )
 
 var DB *gorm.DB
@@ -25,4 +27,5 @@ func ConnectDatabase() {
 	}
 
 	DB = database
+	DB.AutoMigrate(&models.User{})
 }
