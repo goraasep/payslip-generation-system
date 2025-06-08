@@ -4,9 +4,9 @@ import (
 	"os"
 
 	"github.com/goraasep/payslip-generation-system/config"
+	"github.com/goraasep/payslip-generation-system/dto"
 	"github.com/goraasep/payslip-generation-system/helpers"
 	"github.com/goraasep/payslip-generation-system/models"
-	"github.com/goraasep/payslip-generation-system/models/dto"
 	"github.com/goraasep/payslip-generation-system/utils"
 
 	"github.com/gin-gonic/gin"
