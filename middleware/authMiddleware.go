@@ -1,13 +1,13 @@
 package middleware
 
 import (
-	"net/http"
 	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/goraasep/payslip-generation-system/config"
+	"github.com/goraasep/payslip-generation-system/helpers"
 	"github.com/goraasep/payslip-generation-system/models"
 )
 
@@ -15,7 +15,9 @@ func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Missing token"})
+			helpers.ResponseHelper.Unauthorized(c, "Missing token")
+			c.Abort()
+			// c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Missing token"})
 			return
 		}
 
@@ -24,19 +26,25 @@ func AuthMiddleware() gin.HandlerFunc {
 			return []byte(os.Getenv("ACCESS_SECRET")), nil
 		})
 		if err != nil || !token.Valid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			// c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			helpers.ResponseHelper.Unauthorized(c, "Invalid token")
+			c.Abort()
 			return
 		}
 
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
+			// c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
+			helpers.ResponseHelper.Unauthorized(c, "Invalid token claims")
+			c.Abort()
 			return
 		}
 
 		userIDFloat, ok := claims["user_id"].(float64)
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token payload"})
+			// c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token payload"})
+			helpers.ResponseHelper.Unauthorized(c, "Invalid token payload")
+			c.Abort()
 			return
 		}
 
@@ -49,13 +57,17 @@ func RequireRoles(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID, exists := c.Get("user_id")
 		if !exists {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			// c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			helpers.ResponseHelper.Unauthorized(c, "Unauthorized")
+			c.Abort()
 			return
 		}
 
 		var user models.User
 		if err := config.DB.Preload("Roles").First(&user, userID).Error; err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+			// c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+			helpers.ResponseHelper.Unauthorized(c, "User not found")
+			c.Abort()
 			return
 		}
 
@@ -71,6 +83,8 @@ func RequireRoles(roles ...string) gin.HandlerFunc {
 			}
 		}
 
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Forbidden – insufficient role"})
+		// c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Forbidden – insufficient role"})
+		helpers.ResponseHelper.Unauthorized(c, "Forbidden – insufficient role")
+		c.Abort()
 	}
 }
