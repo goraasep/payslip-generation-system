@@ -3,6 +3,7 @@ package controllers
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/goraasep/payslip-generation-system/config"
@@ -51,7 +52,6 @@ func GetAllUsers(c *gin.Context) {
 }
 
 func GetAllAttendancePeriods(c *gin.Context) {
-	// Get query parameters
 	start, _ := strconv.Atoi(c.DefaultQuery("start", "0"))
 	length, _ := strconv.Atoi(c.DefaultQuery("length", "10"))
 	order := c.DefaultQuery("order", "desc")
@@ -77,4 +77,43 @@ func GetAllAttendancePeriods(c *gin.Context) {
 	}
 
 	response.Success(c, "Attendance periods retrieved", paginationResponse)
+}
+
+func CreateAttendancePeriod(c *gin.Context) {
+	var input dto.CreateAttendancePeriodRequest
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	layout := "2006-01-02" // the layout for parsing YYYY-MM-DD
+
+	startDate, err := time.Parse(layout, input.StartDate)
+	if err != nil {
+		response.BadRequest(c, "Invalid start_date format. Use YYYY-MM-DD.")
+		return
+	}
+
+	endDate, err := time.Parse(layout, input.EndDate)
+	if err != nil {
+		response.BadRequest(c, "Invalid end_date format. Use YYYY-MM-DD.")
+		return
+	}
+
+	endDate = time.Date(
+		endDate.Year(), endDate.Month(), endDate.Day(),
+		23, 59, 59, 0, time.UTC,
+	)
+
+	attendancePeriod := models.AttendancePeriod{
+		StartDate: startDate,
+		EndDate:   endDate,
+	}
+
+	if err := config.DB.Create(&attendancePeriod).Error; err != nil {
+		response.InternalError(c, "Failed to create attendance period")
+		return
+	}
+
+	response.Success(c, "Attendance period created", attendancePeriod)
 }

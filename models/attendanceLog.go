@@ -8,9 +8,12 @@ import (
 
 type AttendanceLog struct {
 	gorm.Model
-	AttendancePeriodID uint             `json:"attendance_period_id"`
-	AttendancePeriod   AttendancePeriod `gorm:"foreignKey:AttendancePeriodID" json:"attendance_period"` // relation
 
-	UserID uint      `json:"user_id"`
-	Date   time.Time `json:"date"`
+	AttendancePeriodID uint             `json:"attendance_period_id"`
+	AttendancePeriod   AttendancePeriod `gorm:"foreignKey:AttendancePeriodID" json:"attendance_period"`
+
+	UserID uint `gorm:"not null;index:idx_user_date,unique" json:"user_id"`
+	User   User `gorm:"foreignKey:UserID" json:"user"`
+
+	Date time.Time `gorm:"not null;type:date;index:idx_user_date,unique" json:"date"`
 }

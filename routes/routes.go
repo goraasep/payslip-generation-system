@@ -26,6 +26,7 @@ func SetupRoutes(r *gin.Engine) {
 	{
 		adminGroup.GET("/users", controllers.GetAllUsers)
 		adminGroup.GET("/attendance-periods", controllers.GetAllAttendancePeriods)
+		adminGroup.POST("/attendance-periods", controllers.CreateAttendancePeriod)
 	}
 
 	// Admin and User

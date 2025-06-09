@@ -8,7 +8,9 @@ import (
 
 type AttendancePeriod struct {
 	gorm.Model
-	StartDate time.Time  `json:"start_date"`          // expects RFC3339 format
-	EndDate   time.Time  `json:"end_date"`            // expects RFC3339 format
-	LockedAt  *time.Time `json:"locked_at,omitempty"` // nullable
+
+	StartDate time.Time `gorm:"not null;type:date" json:"start_date"` // store only the date
+	EndDate   time.Time `gorm:"not null;type:date" json:"end_date"`   // store only the date
+
+	LockedAt *time.Time `gorm:"type:timestamp" json:"locked_at,omitempty"` // nullable; full timestamp
 }
