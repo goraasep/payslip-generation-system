@@ -24,7 +24,8 @@ func SetupRoutes(r *gin.Engine) {
 	adminGroup := r.Group("/admin")
 	adminGroup.Use(middleware.AuthMiddleware(), middleware.RequireRoles("ADMIN"))
 	{
-		adminGroup.GET("/dashboard", controllers.AdminDashboard)
+		adminGroup.GET("/users", controllers.GetAllUsers)
+		adminGroup.GET("/attendance-periods", controllers.GetAllAttendancePeriods)
 	}
 
 	// Admin and User

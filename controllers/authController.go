@@ -28,10 +28,17 @@ func Register(c *gin.Context) {
 		return
 	}
 
+	var role models.Role
+	if err := config.DB.Where("name = ?", "USER").First(&role).Error; err != nil {
+		response.InternalError(c, "Role USER not found")
+		return
+	}
+
 	user := models.User{
 		Name:     input.Name,
 		Email:    input.Email,
 		Password: string(hashedPassword),
+		Roles:    []*models.Role{&role},
 	}
 
 	if err := config.DB.Create(&user).Error; err != nil {
