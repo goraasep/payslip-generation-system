@@ -79,6 +79,11 @@ $ go run main.go
 
 ## 🛠️ How-To Guides
 
+### 🔒 Default Credentials
+
+* Admin: `admin@admin.com` with password `admin`
+* User: `user1@user.com` with password `user`
+
 ### ✅ Register & Login
 
 * POST `/register` to register new users
