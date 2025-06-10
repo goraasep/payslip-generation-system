@@ -29,7 +29,17 @@ func ConnectDatabase() {
 	}
 
 	DB = database
-	DB.AutoMigrate(&models.User{}, &models.Role{}, &models.AttendancePeriod{}, &models.AttendanceLog{}, &models.ReimburseLog{}, &models.OvertimeLog{})
+	DB.AutoMigrate(
+		&models.User{},
+		&models.Role{},
+		&models.AttendancePeriod{},
+		&models.AttendanceLog{},
+		&models.ReimburseLog{},
+		&models.OvertimeLog{},
+		&models.Payroll{},
+		&models.Payslip{},
+		&models.PayslipReimbursement{},
+	)
 	Seeding()
 }
 
