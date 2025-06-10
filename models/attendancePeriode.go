@@ -12,5 +12,5 @@ type AttendancePeriod struct {
 	StartDate time.Time `gorm:"not null;type:date" json:"start_date"` // store only the date
 	EndDate   time.Time `gorm:"not null;type:date" json:"end_date"`   // store only the date
 
-	LockedAt *time.Time `gorm:"type:timestamp" json:"locked_at,omitempty"` // nullable; full timestamp
+	// LockedAt *time.Time `gorm:"type:timestamp" json:"locked_at,omitempty"` // nullable; full timestamp
 }

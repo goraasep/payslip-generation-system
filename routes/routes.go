@@ -18,21 +18,32 @@ func SetupRoutes(r *gin.Engine) {
 	protected.Use(middleware.AuthMiddleware())
 	{
 		protected.GET("/me", controllers.Me)
-	}
+		protected.GET("/attendance-periods", controllers.GetAllAttendancePeriods)
+		protected.GET("/attendance-logs", controllers.GetAllAttendanceLogs)
+		protected.GET("/overtime-logs", controllers.GetAllOvertimeLogs)
+		protected.GET("/reimburse-logs", controllers.GetAllReimburseLogs)
 
-	// Admin only
-	adminGroup := r.Group("/admin")
-	adminGroup.Use(middleware.AuthMiddleware(), middleware.RequireRoles("ADMIN"))
-	{
-		adminGroup.GET("/users", controllers.GetAllUsers)
-		adminGroup.GET("/attendance-periods", controllers.GetAllAttendancePeriods)
-		adminGroup.POST("/attendance-periods", controllers.CreateAttendancePeriod)
-	}
+		// Admin and User
+		authGroup := protected.Group("/profile")
+		authGroup.Use(middleware.RequireRoles("ADMIN", "USER"))
+		{
+			authGroup.GET("/me", controllers.Me)
+		}
 
-	// Admin and User
-	authGroup := r.Group("/profile")
-	authGroup.Use(middleware.AuthMiddleware(), middleware.RequireRoles("ADMIN", "USER"))
-	{
-		authGroup.GET("/me", controllers.Me)
+		// Admin only
+		adminGroup := protected.Group("/admin")
+		adminGroup.Use(middleware.RequireRoles("ADMIN"))
+		{
+			adminGroup.GET("/users", controllers.GetAllUsers)
+			adminGroup.POST("/attendance-periods", controllers.CreateAttendancePeriod)
+		}
+
+		userGroup := protected.Group("/user")
+		userGroup.Use(middleware.RequireRoles("USER"))
+		{
+			userGroup.POST("/attendance-logs", controllers.CreateAttendanceLog)
+			userGroup.POST("/overtime-logs", controllers.CreateOvertimeLog)
+			userGroup.POST("/reimburse-logs", controllers.CreateReimburseLog)
+		}
 	}
 }
