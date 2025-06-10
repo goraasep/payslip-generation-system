@@ -153,9 +153,14 @@ func RunPayroll(c *gin.Context) {
 			}
 		}
 	}
+	payrollResponse := dto.PayrollResponse{
+		ID:                 payroll.ID,
+		AttendancePeriodID: payroll.AttendancePeriodID,
+		ProcessedAt:        payroll.ProcessedAt.Format("2006-01-02 15:04:05"),
+	}
 
 	tx.Commit()
-	response.Success(c, "Payroll successfully processed", payroll)
+	response.Success(c, "Payroll successfully processed", payrollResponse)
 }
 
 func countWeekdays(start, end time.Time) int {
