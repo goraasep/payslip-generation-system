@@ -59,7 +59,14 @@ func CreateAttendanceLog(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, "Attendance log created", attendanceLog)
+	attendanceLogResponse := dto.AttendanceLogResponse{
+		ID:                 attendanceLog.ID,
+		AttendancePeriodID: attendanceLog.AttendancePeriodID,
+		UserID:             attendanceLog.UserID,
+		Date:               attendanceLog.Date.Format("2006-01-02"),
+	}
+
+	response.Success(c, "Attendance log created", attendanceLogResponse)
 }
 
 func GetAllAttendanceLogs(c *gin.Context) {
@@ -97,7 +104,7 @@ func GetAllAttendanceLogs(c *gin.Context) {
 
 	query = query.Order(fmt.Sprintf("%s %s", field, order))
 
-	err = query.Offset(start).Limit(length).Find(&attendanceLogs).Error
+	err = query.Preload("User").Preload("AttendancePeriod").Offset(start).Limit(length).Find(&attendanceLogs).Error
 	if err != nil {
 		response.BadRequest(c, "Failed to fetch attendance logs")
 		return

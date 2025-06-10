@@ -19,24 +19,29 @@ func GetAllOvertimeLogs(c *gin.Context) {
 	field := c.DefaultQuery("field", "id")
 
 	userID := c.MustGet("user_id").(uint)
-	//check if user admin or not
+
+	// Check if user is admin
 	var user models.User
 	err := config.DB.Preload("Roles").First(&user, userID).Error
 	if err != nil {
 		response.BadRequest(c, "User not found")
 		return
 	}
+
 	isAdmin := false
 	for _, role := range user.Roles {
 		if role.Name == "ADMIN" {
 			isAdmin = true
 			break
 		}
-
 	}
 
 	var overtimeLogs []models.OvertimeLog
-	query := config.DB.Model(&models.OvertimeLog{})
+
+	query := config.DB.
+		Model(&models.OvertimeLog{}).
+		Preload("User").
+		Preload("AttendancePeriod")
 
 	if !isAdmin {
 		query = query.Where("user_id = ?", userID)
@@ -45,12 +50,16 @@ func GetAllOvertimeLogs(c *gin.Context) {
 	if search != "" {
 		query = query.Where("description ILIKE ?", "%"+search+"%")
 	}
+
 	var total int64
 	query.Count(&total)
 
-	query = query.Order(fmt.Sprintf("%s %s", field, order))
+	err = query.
+		Order(fmt.Sprintf("%s %s", field, order)).
+		Offset(start).
+		Limit(length).
+		Find(&overtimeLogs).Error
 
-	err = query.Offset(start).Limit(length).Find(&overtimeLogs).Error
 	if err != nil {
 		response.BadRequest(c, "Failed to fetch overtime logs")
 		return
@@ -79,11 +88,13 @@ func CreateOvertimeLog(c *gin.Context) {
 		return
 	}
 
-	var attendance models.AttendanceLog
-	err = config.DB.Where("attendance_period_id = ? AND user_id = ? AND date = ?", input.AttendancePeriodID, userID, date).First(&attendance).Error
-	if err != nil {
-		response.BadRequest(c, "Attendance log not found, please create attendance log first")
-		return
+	if date.Weekday() != time.Saturday && date.Weekday() != time.Sunday {
+		var attendance models.AttendanceLog
+		err = config.DB.Where("attendance_period_id = ? AND user_id = ? AND date = ?", input.AttendancePeriodID, userID, date).First(&attendance).Error
+		if err != nil {
+			response.BadRequest(c, "Attendance log not found, please create attendance log first")
+			return
+		}
 	}
 
 	var existing models.OvertimeLog
@@ -110,11 +121,19 @@ func CreateOvertimeLog(c *gin.Context) {
 		UserID:             userID,
 		Hour:               input.Hour,
 	}
-
 	if err := config.DB.Create(&overtimeLog).Error; err != nil {
 		response.InternalError(c, "Failed to create overtime log")
 		return
 	}
 
-	response.Success(c, "Overtime log created", overtimeLog)
+	overtimeLogResponse := dto.OvertimeLogResponse{
+		ID:                 overtimeLog.ID,
+		AttendancePeriodID: overtimeLog.AttendancePeriodID,
+		UserID:             overtimeLog.UserID,
+		Date:               overtimeLog.Date.Format("2006-01-02"),
+		Description:        overtimeLog.Description,
+		Hour:               overtimeLog.Hour,
+	}
+
+	response.Success(c, "Overtime log created", overtimeLogResponse)
 }
