@@ -1,8 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"net/http"
 
+	"github.com/arl/statsviz"
 	"github.com/gin-gonic/gin"
 	"github.com/goraasep/payslip-generation-system/config"
 	"github.com/goraasep/payslip-generation-system/routes"
@@ -14,6 +17,12 @@ func init() {
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
+	statsviz.RegisterDefault()
+
+	go func() {
+		fmt.Println("Point your browser to http://localhost:7000/debug/statsviz/")
+		log.Fatal(http.ListenAndServe(":7000", nil))
+	}()
 }
 func main() {
 	config.ConnectDatabase()

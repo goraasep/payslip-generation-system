@@ -3,14 +3,13 @@ package config
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 
+	"github.com/goraasep/payslip-generation-system/models"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-
-	"github.com/goraasep/payslip-generation-system/models"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 var DB *gorm.DB
@@ -24,13 +23,13 @@ func ConnectDatabase() {
 		os.Getenv("DB_PORT"),
 	)
 
-	database, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		panic("Failed to connect to PostgreSQL database!")
+		log.Fatalf("Failed to connect to PostgreSQL database: %v", err)
 	}
+	DB = db
 
-	DB = database
-	err = DB.AutoMigrate(
+	if err := DB.AutoMigrate(
 		&models.User{},
 		&models.Role{},
 		&models.AttendancePeriod{},
@@ -40,40 +39,55 @@ func ConnectDatabase() {
 		&models.Payroll{},
 		&models.Payslip{},
 		&models.PayslipReimbursement{},
-	)
-	if err != nil {
+	); err != nil {
 		log.Fatalf("Migration failed: %v", err)
 	}
-	Seeding()
 }
 
 func Seeding() {
-	// Create roles
 	adminRole := models.Role{Name: "ADMIN"}
 	userRole := models.Role{Name: "USER"}
-
 	DB.FirstOrCreate(&adminRole, models.Role{Name: "ADMIN"})
 	DB.FirstOrCreate(&userRole, models.Role{Name: "USER"})
 
-	// ===== Admin User =====
-	hashedAdminPassword, _ := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
+	hashedAdminPassword, err := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
+	if err != nil {
+		log.Fatalf("Failed to hash admin password: %v", err)
+	}
 	admin := models.User{
 		Name:     "admin",
 		Email:    "admin@admin.com",
 		Password: string(hashedAdminPassword),
 		Roles:    []*models.Role{&adminRole},
+		Salary:   0,
 	}
-	DB.FirstOrCreate(&admin, models.User{Email: "admin@admin.com"})
-	DB.Model(&admin).Association("Roles").Append(&adminRole)
+	DB.FirstOrCreate(&admin, models.User{Email: admin.Email})
+	DB.Model(&admin).Association("Roles").Replace(&adminRole)
 
-	// ===== Normal User =====
-	hashedUserPassword, _ := bcrypt.GenerateFromPassword([]byte("user"), bcrypt.DefaultCost)
-	user := models.User{
-		Name:     "user",
-		Email:    "user@user.com",
-		Password: string(hashedUserPassword),
-		Roles:    []*models.Role{&userRole},
+	// 3) 100 fake users
+	hashedUserPassword, err := bcrypt.GenerateFromPassword([]byte("user"), bcrypt.DefaultCost)
+	if err != nil {
+		log.Fatalf("Failed to hash user password: %v", err)
 	}
-	DB.FirstOrCreate(&user, models.User{Email: "user@user.com"})
-	DB.Model(&user).Association("Roles").Append(&userRole)
+	const minSalary, maxSalary = 3_000_000, 10_000_000
+
+	for i := 1; i <= 100; i++ {
+		email := fmt.Sprintf("user%d@example.com", i)
+		name := fmt.Sprintf("user%d", i)
+
+		raw := rand.Intn(maxSalary-minSalary+1) + minSalary
+
+		user := models.User{
+			Name:     name,
+			Email:    email,
+			Password: string(hashedUserPassword),
+			Roles:    []*models.Role{&userRole},
+			Salary:   float64(raw),
+		}
+
+		DB.FirstOrCreate(&user, models.User{Email: email})
+		DB.Model(&user).Association("Roles").Replace(&userRole)
+	}
+
+	log.Println("Seeding: roles + 1 admin + 100 users created (if not already present).")
 }
