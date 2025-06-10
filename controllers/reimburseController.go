@@ -84,6 +84,12 @@ func CreateReimburseLog(c *gin.Context) {
 		return
 	}
 
+	var existingPayroll models.Payroll
+	if err := config.DB.Where("attendance_period_id = ?", input.AttendancePeriodID).First(&existingPayroll).Error; err == nil {
+		response.BadRequest(c, "Attendance cannot be submitted because payroll has been processed for this period")
+		return
+	}
+
 	var user models.User
 	if err := config.DB.First(&user).Error; err != nil {
 		response.BadRequest(c, "User not found")

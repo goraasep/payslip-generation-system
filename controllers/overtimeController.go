@@ -88,6 +88,12 @@ func CreateOvertimeLog(c *gin.Context) {
 		return
 	}
 
+	var existingPayroll models.Payroll
+	if err := config.DB.Where("attendance_period_id = ?", input.AttendancePeriodID).First(&existingPayroll).Error; err == nil {
+		response.BadRequest(c, "Attendance cannot be submitted because payroll has been processed for this period")
+		return
+	}
+
 	if date.Weekday() != time.Saturday && date.Weekday() != time.Sunday {
 		var attendance models.AttendanceLog
 		err = config.DB.Where("attendance_period_id = ? AND user_id = ? AND date = ?", input.AttendancePeriodID, userID, date).First(&attendance).Error

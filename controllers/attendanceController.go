@@ -31,6 +31,12 @@ func CreateAttendanceLog(c *gin.Context) {
 		return
 	}
 
+	var existingPayroll models.Payroll
+	if err := config.DB.Where("attendance_period_id = ?", input.AttendancePeriodID).First(&existingPayroll).Error; err == nil {
+		response.BadRequest(c, "Attendance cannot be submitted because payroll has been processed for this period")
+		return
+	}
+
 	var period models.AttendancePeriod
 	if err := config.DB.First(&period, input.AttendancePeriodID).Error; err != nil {
 		response.BadRequest(c, "Attendance period not found")
