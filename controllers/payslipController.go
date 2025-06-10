@@ -1,8 +1,10 @@
 package controllers
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/goraasep/payslip-generation-system/config"
@@ -136,4 +138,160 @@ func generatePayslipPDF(c *gin.Context, data dto.PayslipResponse) {
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": "Failed to generate PDF"})
 	}
+}
+
+func GetPayslipSummary(c *gin.Context) {
+	userID := c.MustGet("user_id").(uint)
+
+	// Check if user is admin
+	var currentUser models.User
+	if err := config.DB.Preload("Roles").First(&currentUser, userID).Error; err != nil {
+		response.BadRequest(c, "User not found")
+		return
+	}
+
+	isAdmin := false
+	for _, role := range currentUser.Roles {
+		if role.Name == "ADMIN" {
+			isAdmin = true
+			break
+		}
+	}
+	if !isAdmin {
+		response.Unauthorized(c, "Only admin can access this")
+		return
+	}
+
+	// Get all payslips with user info
+	var payslips []models.Payslip
+	if err := config.DB.Preload("User").Find(&payslips).Error; err != nil {
+		response.InternalError(c, "Failed to fetch payslips")
+		return
+	}
+
+	// Build response
+	var summary []dto.PayslipSummaryItem
+	var totalTakeHome float64
+
+	for _, payslip := range payslips {
+		item := dto.PayslipSummaryItem{
+			UserID:      payslip.UserID,
+			UserName:    payslip.User.Name,
+			TakeHomePay: payslip.TakeHomePay,
+		}
+		summary = append(summary, item)
+		totalTakeHome += payslip.TakeHomePay
+	}
+
+	res := dto.PayslipSummaryResponse{
+		Payslips:      summary,
+		TotalTakeHome: totalTakeHome,
+	}
+
+	response.Success(c, "Payslip summary generated", res)
+}
+
+func GeneratePayslipSummary(c *gin.Context) {
+	userID := c.MustGet("user_id").(uint)
+
+	// Admin check
+	var currentUser models.User
+	if err := config.DB.Preload("Roles").First(&currentUser, userID).Error; err != nil {
+		response.BadRequest(c, "User not found")
+		return
+	}
+	isAdmin := false
+	for _, role := range currentUser.Roles {
+		if role.Name == "ADMIN" {
+			isAdmin = true
+			break
+		}
+	}
+	if !isAdmin {
+		response.Unauthorized(c, "Only admin can access this")
+		return
+	}
+
+	// Bind body
+	var req dto.PayslipSummaryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	// Fetch payslips for the given payroll_id
+	var payslips []models.Payslip
+	if err := config.DB.Preload("User").
+		Where("payroll_id = ?", req.PayrollID).
+		Find(&payslips).Error; err != nil {
+		response.InternalError(c, "Failed to fetch payslips")
+		return
+	}
+
+	if len(payslips) == 0 {
+		response.BadRequest(c, "No payslips found for the given payroll ID")
+		return
+	}
+
+	var total float64
+	var summary []dto.PayslipSummaryItem
+	for _, p := range payslips {
+		total += p.TakeHomePay
+		summary = append(summary, dto.PayslipSummaryItem{
+			UserID:      p.UserID,
+			UserName:    p.User.Name,
+			TakeHomePay: p.TakeHomePay,
+		})
+	}
+
+	// Optional: generate PDF
+	if c.Query("pdf") == "true" {
+		generatePayslipSummaryPDF(c, summary, total)
+		return
+	}
+
+	response.Success(c, "Payslip summary fetched successfully", dto.PayslipSummaryResponse{
+		Payslips:      summary,
+		TotalTakeHome: total,
+	})
+
+}
+
+func generatePayslipSummaryPDF(c *gin.Context, summary []dto.PayslipSummaryItem, total float64) {
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.AddPage()
+	pdf.SetFont("Arial", "B", 16)
+	pdf.Cell(40, 10, "Payslip Summary Report")
+	pdf.Ln(12)
+
+	pdf.SetFont("Arial", "", 12)
+	now := time.Now().Format("2006-01-02 15:04:05")
+	pdf.Cell(40, 10, fmt.Sprintf("Generated at: %s", now))
+	pdf.Ln(10)
+
+	pdf.SetFont("Arial", "B", 12)
+	pdf.CellFormat(60, 10, "Employee", "1", 0, "", false, 0, "")
+	pdf.CellFormat(60, 10, "User ID", "1", 0, "", false, 0, "")
+	pdf.CellFormat(60, 10, "Take Home Pay", "1", 1, "", false, 0, "")
+
+	pdf.SetFont("Arial", "", 12)
+	for _, s := range summary {
+		pdf.CellFormat(60, 10, s.UserName, "1", 0, "", false, 0, "")
+		pdf.CellFormat(60, 10, fmt.Sprintf("%v", s.UserID), "1", 0, "", false, 0, "")
+		pdf.CellFormat(60, 10, fmt.Sprintf("Rp %.2f", s.TakeHomePay), "1", 1, "", false, 0, "")
+	}
+
+	pdf.SetFont("Arial", "B", 12)
+	pdf.CellFormat(120, 10, "Total", "1", 0, "R", false, 0, "")
+	pdf.CellFormat(60, 10, fmt.Sprintf("Rp %.2f", total), "1", 1, "", false, 0, "")
+
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		response.InternalError(c, "Failed to generate PDF")
+		return
+	}
+
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", "attachment; filename=payslip_summary.pdf")
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
 }

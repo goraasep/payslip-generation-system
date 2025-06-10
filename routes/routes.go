@@ -38,6 +38,7 @@ func SetupRoutes(r *gin.Engine) {
 			adminGroup.GET("/users", controllers.GetAllUsers)
 			adminGroup.POST("/attendance-periods", controllers.CreateAttendancePeriod)
 			adminGroup.POST("/run-payroll", controllers.RunPayroll)
+			adminGroup.POST("/generate-payslip-summary", controllers.GeneratePayslipSummary)
 		}
 
 		userGroup := protected.Group("/user")
