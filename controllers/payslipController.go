@@ -233,6 +233,16 @@ func GeneratePayslipSummary(c *gin.Context) {
 		return
 	}
 
+	var payroll models.Payroll
+	if err := config.DB.Preload("AttendancePeriod").First(&payroll, req.PayrollID).Error; err != nil {
+		response.BadRequest(c, "Payroll not found")
+		return
+	}
+
+	start := payroll.AttendancePeriod.StartDate.Format("2006-01-02")
+	end := payroll.AttendancePeriod.EndDate.Format("2006-01-02")
+	processedAt := payroll.ProcessedAt.Format("2006-01-02 15:04:05")
+
 	var total float64
 	var summary []dto.PayslipSummaryItem
 	for _, p := range payslips {
@@ -246,18 +256,20 @@ func GeneratePayslipSummary(c *gin.Context) {
 
 	// Optional: generate PDF
 	if c.Query("pdf") == "true" {
-		generatePayslipSummaryPDF(c, summary, total)
+		generatePayslipSummaryPDF(c, summary, total, fmt.Sprintf("%s to %s", start, end), processedAt)
 		return
 	}
 
 	response.Success(c, "Payslip summary fetched successfully", dto.PayslipSummaryResponse{
-		Payslips:      summary,
-		TotalTakeHome: total,
+		Payslips:         summary,
+		TotalTakeHome:    total,
+		AttendancePeriod: fmt.Sprintf("%s to %s", start, end),
+		ProcessedAt:      processedAt,
 	})
 
 }
 
-func generatePayslipSummaryPDF(c *gin.Context, summary []dto.PayslipSummaryItem, total float64) {
+func generatePayslipSummaryPDF(c *gin.Context, summary []dto.PayslipSummaryItem, total float64, attendancePeriod string, processedAt string) {
 	pdf := gofpdf.New("P", "mm", "A4", "")
 	pdf.AddPage()
 	pdf.SetFont("Arial", "B", 16)
@@ -265,15 +277,25 @@ func generatePayslipSummaryPDF(c *gin.Context, summary []dto.PayslipSummaryItem,
 	pdf.Ln(12)
 
 	pdf.SetFont("Arial", "", 12)
-	now := time.Now().Format("2006-01-02 15:04:05")
-	pdf.Cell(40, 10, fmt.Sprintf("Generated at: %s", now))
-	pdf.Ln(10)
 
+	// Display attendance period and processed date
+	pdf.Cell(40, 10, fmt.Sprintf("Attendance Period: %s", attendancePeriod))
+	pdf.Ln(8)
+	pdf.Cell(40, 10, fmt.Sprintf("Processed At: %s", processedAt))
+	pdf.Ln(8)
+
+	// Display generated time
+	now := time.Now().Format("2006-01-02 15:04:05")
+	pdf.Cell(40, 10, fmt.Sprintf("Generated At: %s", now))
+	pdf.Ln(12)
+
+	// Table headers
 	pdf.SetFont("Arial", "B", 12)
 	pdf.CellFormat(60, 10, "Employee", "1", 0, "", false, 0, "")
 	pdf.CellFormat(60, 10, "User ID", "1", 0, "", false, 0, "")
 	pdf.CellFormat(60, 10, "Take Home Pay", "1", 1, "", false, 0, "")
 
+	// Table content
 	pdf.SetFont("Arial", "", 12)
 	for _, s := range summary {
 		pdf.CellFormat(60, 10, s.UserName, "1", 0, "", false, 0, "")
@@ -281,10 +303,12 @@ func generatePayslipSummaryPDF(c *gin.Context, summary []dto.PayslipSummaryItem,
 		pdf.CellFormat(60, 10, fmt.Sprintf("Rp %.2f", s.TakeHomePay), "1", 1, "", false, 0, "")
 	}
 
+	// Total row
 	pdf.SetFont("Arial", "B", 12)
 	pdf.CellFormat(120, 10, "Total", "1", 0, "R", false, 0, "")
 	pdf.CellFormat(60, 10, fmt.Sprintf("Rp %.2f", total), "1", 1, "", false, 0, "")
 
+	// Output
 	var buf bytes.Buffer
 	if err := pdf.Output(&buf); err != nil {
 		response.InternalError(c, "Failed to generate PDF")

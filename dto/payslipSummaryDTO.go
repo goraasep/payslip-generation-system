@@ -7,8 +7,10 @@ type PayslipSummaryItem struct {
 }
 
 type PayslipSummaryResponse struct {
-	Payslips      []PayslipSummaryItem `json:"payslips"`
-	TotalTakeHome float64              `json:"total_take_home"`
+	Payslips         []PayslipSummaryItem `json:"payslips"`
+	TotalTakeHome    float64              `json:"total_take_home"`
+	AttendancePeriod string               `json:"attendance_period"` // e.g., "2025-06-01 to 2025-06-30"
+	ProcessedAt      string               `json:"processed_at"`      // formatted date string
 }
 
 type PayslipSummaryRequest struct {
