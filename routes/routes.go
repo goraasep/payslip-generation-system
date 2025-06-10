@@ -22,6 +22,7 @@ func SetupRoutes(r *gin.Engine) {
 		protected.GET("/attendance-logs", controllers.GetAllAttendanceLogs)
 		protected.GET("/overtime-logs", controllers.GetAllOvertimeLogs)
 		protected.GET("/reimburse-logs", controllers.GetAllReimburseLogs)
+		protected.GET("/payrolls", controllers.GetAllPayrolls)
 
 		// Admin and User
 		authGroup := protected.Group("/profile")
@@ -45,6 +46,7 @@ func SetupRoutes(r *gin.Engine) {
 			userGroup.POST("/attendance-logs", controllers.CreateAttendanceLog)
 			userGroup.POST("/overtime-logs", controllers.CreateOvertimeLog)
 			userGroup.POST("/reimburse-logs", controllers.CreateReimburseLog)
+			userGroup.POST("/generate-payslip", controllers.GetPayslip)
 		}
 	}
 }

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -95,21 +96,27 @@ func RunPayroll(c *gin.Context) {
 			Where("user_id = ? AND attendance_period_id = ?", user.ID, input.AttendancePeriodID).
 			Count(&presentCount)
 
-		// Working days
+		// Working days (Mon–Fri)
 		workDays := countWeekdays(period.StartDate, period.EndDate)
 		if workDays == 0 {
 			workDays = 1
 		}
 		proratedSalary := baseSalary * float64(presentCount) / float64(workDays)
 
-		// Overtime hours
-		var totalOvertime float64
-		tx.Model(&models.OvertimeLog{}).
-			Where("user_id = ? AND attendance_period_id = ?", user.ID, input.AttendancePeriodID).
-			Select("COALESCE(SUM(hour), 0)").Scan(&totalOvertime)
+		// Overtime logs
+		var overtimeLogs []models.OvertimeLog
+		tx.Where("user_id = ? AND attendance_period_id = ?", user.ID, input.AttendancePeriodID).
+			Find(&overtimeLogs)
 
-		hourlyRate := baseSalary / float64(workDays*8)
-		overtimePay := totalOvertime * hourlyRate * 2
+		totalOvertime := 0.0
+		for _, log := range overtimeLogs {
+			totalOvertime += float64(log.Hour)
+		}
+		overtimeCount := len(overtimeLogs)
+		overtimeHours := totalOvertime
+
+		hourlyRate := baseSalary / float64(workDays*8) // assuming 8h/day
+		overtimePay := overtimeHours * hourlyRate * 2
 
 		// Reimbursements
 		var reimbursements []models.ReimburseLog
@@ -123,13 +130,17 @@ func RunPayroll(c *gin.Context) {
 
 		takeHome := proratedSalary + overtimePay + reimburseTotal
 
-		// Create payslip
+		// Create payslip with new fields
 		payslip := models.Payslip{
 			PayrollID:          payroll.ID,
 			UserID:             user.ID,
 			BaseSalary:         baseSalary,
 			ProratedSalary:     proratedSalary,
 			OvertimePay:        overtimePay,
+			OvertimeCount:      overtimeCount,
+			OvertimeHours:      overtimeHours,
+			AttendanceCount:    int(presentCount),
+			AttendancePeriod:   workDays,
 			ReimbursementTotal: reimburseTotal,
 			TakeHomePay:        takeHome,
 		}
@@ -139,6 +150,7 @@ func RunPayroll(c *gin.Context) {
 			return
 		}
 
+		// Save payslip reimbursements
 		for _, r := range reimbursements {
 			payslipReimburse := models.PayslipReimbursement{
 				PayslipID:      payslip.ID,
@@ -153,6 +165,7 @@ func RunPayroll(c *gin.Context) {
 			}
 		}
 	}
+
 	payrollResponse := dto.PayrollResponse{
 		ID:                 payroll.ID,
 		AttendancePeriodID: payroll.AttendancePeriodID,
@@ -171,4 +184,32 @@ func countWeekdays(start, end time.Time) int {
 		}
 	}
 	return count
+}
+
+func GetAllPayrolls(c *gin.Context) {
+	start, _ := strconv.Atoi(c.DefaultQuery("start", "0"))
+	length, _ := strconv.Atoi(c.DefaultQuery("length", "10"))
+	order := c.DefaultQuery("order", "desc")
+	field := c.DefaultQuery("field", "id")
+
+	var payrolls []models.Payroll
+	query := config.DB.Model(&models.Payroll{})
+
+	var total int64
+	query.Count(&total)
+
+	query = query.Order(fmt.Sprintf("%s %s", field, order))
+
+	err := query.Preload("AttendancePeriod").Offset(start).Limit(length).Find(&payrolls).Error
+	if err != nil {
+		response.BadRequest(c, "Failed to fetch payrolls")
+		return
+	}
+
+	paginationResponse := dto.PaginationResponse{
+		RecordsFiltered: total,
+		Data:            payrolls,
+	}
+
+	response.Success(c, "Payrolls retrieved", paginationResponse)
 }

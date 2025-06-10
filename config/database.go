@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"gorm.io/driver/postgres"
@@ -29,7 +30,7 @@ func ConnectDatabase() {
 	}
 
 	DB = database
-	DB.AutoMigrate(
+	err = DB.AutoMigrate(
 		&models.User{},
 		&models.Role{},
 		&models.AttendancePeriod{},
@@ -40,6 +41,9 @@ func ConnectDatabase() {
 		&models.Payslip{},
 		&models.PayslipReimbursement{},
 	)
+	if err != nil {
+		log.Fatalf("Migration failed: %v", err)
+	}
 	Seeding()
 }
 
